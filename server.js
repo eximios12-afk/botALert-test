@@ -15,7 +15,7 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
 const MIN_SOL = Number(process.env.MIN_SOL || 0);
 const ONLY_TYPES = (process.env.ONLY_TYPES || "")
   .split(",")
-  .map(v => v.trim().toUpperCase())
+  .map((v) => v.trim().toUpperCase())
   .filter(Boolean);
 
 function shortAddr(addr = "") {
@@ -36,11 +36,12 @@ async function sendTelegramMessage(text) {
   }
 
   const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+
   await axios.post(url, {
     chat_id: TELEGRAM_CHAT_ID,
     text,
     parse_mode: "HTML",
-    disable_web_page_preview: true
+    disable_web_page_preview: true,
   });
 }
 
@@ -75,7 +76,7 @@ function getTokenTransferSummary(tx, wallet) {
       relevant.push({
         mint: t?.mint || "",
         tokenAmount: t?.tokenAmount ?? "?",
-        direction: toMatch ? "IN" : "OUT"
+        direction: toMatch ? "IN" : "OUT",
       });
     }
   }
@@ -86,18 +87,21 @@ function getTokenTransferSummary(tx, wallet) {
 function shouldSend(tx) {
   const type = String(tx?.type || "").toUpperCase();
 
-  // Only consider SWAP transactions (buy/sell)
-  if (type !== "SWAP") return false;
+  // Respect ONLY_TYPES from .env unless it's empty or set to ANY
+  if (
+    ONLY_TYPES.length > 0 &&
+    !ONLY_TYPES.includes("ANY") &&
+    !ONLY_TYPES.includes(type)
+  ) {
+    return false;
+  }
 
   const { sent } = getNativeTransferSummary(tx, MONITORED_WALLET);
 
-  // BUY = wallet SPENDS SOL
-  if (sent >= 1) {
-    return true;
-  }
-
-  return false;
+  // Buy alert = monitored wallet spent at least MIN_SOL
+  return sent >= MIN_SOL;
 }
+
 function buildMessage(tx) {
   const signature = tx?.signature || "N/A";
   const type = tx?.type || "UNKNOWN";
@@ -107,6 +111,7 @@ function buildMessage(tx) {
 
   const { received, sent } = getNativeTransferSummary(tx, MONITORED_WALLET);
   const tokenTransfers = getTokenTransferSummary(tx, MONITORED_WALLET);
+  const boughtTokens = tokenTransfers.filter((t) => t.direction === "IN");
 
   let message = `🚨 <b>Wallet Alert</b>\n`;
   message += `👛 Wallet: <code>${escapeHtml(shortAddr(MONITORED_WALLET))}</code>\n`;
@@ -114,19 +119,24 @@ function buildMessage(tx) {
   message += `🏷 Source: <b>${escapeHtml(source)}</b>\n`;
   message += `💸 Fee: <b>${fee} SOL</b>\n`;
 
-  if (received > 0) message += `🟢 Received: <b>${received.toFixed(4)} SOL</b>\n`;
-if (sent > 0) {
-  message += `🟢 BUY: <b>${sent.toFixed(4)} SOL</b>\n`;
-}
-  if (tokenTransfers.length > 0) {
-    message += `🪙 Token Transfers:\n`;
-    for (const t of tokenTransfers.slice(0, 5)) {
-      message += `• ${escapeHtml(String(t.tokenAmount))} ${t.direction} <code>${escapeHtml(shortAddr(t.mint))}</code>\n`;
+  if (received > 0) {
+    message += `🟢 Received: <b>${received.toFixed(4)} SOL</b>\n`;
+  }
+
+  if (sent > 0) {
+    message += `🟢 BUY: <b>${sent.toFixed(4)} SOL</b>\n`;
+  }
+
+  if (boughtTokens.length > 0) {
+    message += `🪙 Tokens Bought:\n`;
+    for (const t of boughtTokens.slice(0, 5)) {
+      message += `• ${escapeHtml(String(t.tokenAmount))} <code>${escapeHtml(shortAddr(t.mint))}</code>\n`;
     }
   }
 
   message += `📝 ${escapeHtml(description)}\n`;
   message += `🔗 <a href="https://solscan.io/tx/${encodeURIComponent(signature)}">View Transaction</a>`;
+
   return message;
 }
 
@@ -143,6 +153,7 @@ app.post("/webhook", async (req, res) => {
     }
 
     const payload = req.body;
+
     if (!Array.isArray(payload)) {
       return res.status(400).json({ ok: false, error: "Expected array payload from Helius" });
     }
@@ -151,6 +162,7 @@ app.post("/webhook", async (req, res) => {
 
     for (const tx of payload) {
       if (!shouldSend(tx)) continue;
+
       const msg = buildMessage(tx);
       await sendTelegramMessage(msg);
       sentCount += 1;
@@ -166,4 +178,6 @@ app.post("/webhook", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Monitoring wallet: ${MONITORED_WALLET}`);
+  console.log(`MIN_SOL: ${MIN_SOL}`);
+  console.log(`ONLY_TYPES: ${ONLY_TYPES.join(",") || "ANY"}`);
 });
