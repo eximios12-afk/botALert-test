@@ -16,7 +16,7 @@ services:
       - key: HELIUS_API_KEY
         sync: false
       - key: MONITORED_WALLET
-        value: 2iVfHzyU73QuqbEVmg1ibCNPsJLPHvPA97FKtigksTxS
+        value: DoAsxPQgiyAxyaJNvpAAUb2ups6rbJRdYrCPyWxwRxBb
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_CHAT_ID
