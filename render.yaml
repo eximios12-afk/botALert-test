@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: wallet-buy-alert-bot
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: PORT
+        value: 10000
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: HELIUS_API_KEY
+        sync: false
+      - key: MONITORED_WALLET
+        value: 54Pz1e35z9uoFdnxtzjp7xZQoFiofqhdayQWBMN7dsuy
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: MIN_BUY_SOL
+        value: 1
